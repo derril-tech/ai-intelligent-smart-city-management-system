@@ -1,0 +1,311 @@
+# PROMPT DECLARATION - CivitasIQ Smart City Management System
+
+## Project Overview
+
+You are an AI assistant helping to develop **CivitasIQ**, an intelligent smart city management system. This is a unified, AI-driven command platform for modern cities that fuses live sensor data, geospatial feeds, and citizen inputs into a real-time city twin that forecasts demand, flags anomalies, and coordinates response across mobility, energy, water, waste, and public safety.
+
+**Target Users**: City operations managers, emergency response teams, utility managers, transportation coordinators, and data analysts.
+
+**Core Goals**: Real-time operational visibility, AI-powered decision making, multi-tenant deployments, data security compliance, and geospatial-first user experience.
+
+## Technology Stack & Architecture
+
+### Frontend Architecture
+- **Framework**: Next.js 14 with App Router and feature folders: `/(dashboard)/(mobility)/(utilities)/(safety)/admin`
+- **Language**: TypeScript for type safety (100% coverage, no `any` types)
+- **Styling**: Tailwind CSS with custom design tokens and shadcn/ui components
+- **State Management**: React Query (server state), Zustand (local UI), URL-as-state for filters
+- **UI Libraries**: Lucide React (icons), Recharts (charts), Framer Motion (animations)
+- **Maps**: Mapbox GL JS for geospatial visualization with layer manager
+- **Forms**: React Hook Form with Zod validation
+- **Utilities**: clsx, tailwind-merge, date-fns, react-hot-toast
+- **Real-time**: WebSocket hook `useLiveChannel(topic)` with backoff + presence
+- **Internationalization**: next-intl with numeral/date localization
+
+### Backend Architecture
+- **Framework**: FastAPI (async) with Python
+- **Service Layout**: `/apps/{domain}` (mobility, utilities, safety, permits), `/core` (auth, users, tenants, RBAC), `/ai` (agents, RAG, models)
+- **Database**: PostgreSQL with PostGIS (geospatial), TimescaleDB (time-series), pgvector (RAG & similarity)
+- **ORM**: SQLAlchemy with Alembic migrations
+- **Validation**: Pydantic for request/response schemas
+- **AI/ML**: LangGraph for orchestration, LangChain framework, OpenAI/Anthropic LLMs
+- **Caching**: Redis for sessions, caching, and message queues (keys: session:*, cache:*, queue:*)
+- **Authentication**: JWT tokens with RBAC and tenant scoping
+- **Real-time**: WebSocket connections for live channels (/ws/alerts, /ws/telemetry, /ws/command)
+- **Background Jobs**: Redis RQ/Arq workers for model inference, ETL, exports
+
+### Database Schema Highlights
+- **Core**: `core.users`, `core.tenants`, `core.roles`, `core.audit_logs`
+- **Geospatial**: `geo.assets(id, type, geom, meta)`, `geo.zones(id, name, polygon, rules)`
+- **Time-series**: `ts.telemetry(asset_id, ts, metrics jsonb, tags jsonb, location geography(Point))` (hypertable)
+- **Operations**: `ops.incidents(id, source, status, severity, geom, started_at, resolved_at, links jsonb)`
+- **AI**: `ops.recommendations(id, incident_id?, type, payload jsonb, rationale, confidence, created_at)`
+- **RAG**: `rag.documents(id, tenant_id, source_uri, title, text, metadata jsonb, embedding vector)`
+- **Mobility**: `mobility.signals(id, controller_ref, phase_plan jsonb)`, `mobility.travel_times(corridor_id, ts, minutes)`
+
+## Frontend/Backend Boundaries & Data Contracts
+
+### Frontend Responsibilities
+- **UI/UX**: All user interface components, layouts, and interactions
+- **State Management**: Client-side state, form handling, UI state, optimistic UI for config changes
+- **Data Fetching**: API calls using React Query, WebSocket connections with backoff
+- **Validation**: Client-side form validation with Zod
+- **Routing**: Next.js App Router navigation and page management
+- **Performance**: Bundle optimization, code splitting, lazy loading
+- **Geospatial UI**: Mapbox GL JS layer manager (heatmaps, choropleths, incidents, isochrones)
+- **Charts**: Recharts for time-series data, virtualized tables for telemetry and incidents
+- **Workflows**: Incident triage drawer, recommendation review modal, one-click actions with approval
+- **Scenario Studio**: Side-by-side compare (baseline vs proposed), sandbox commit with diff summary
+
+### Backend Responsibilities
+- **API Endpoints**: RESTful APIs with OpenAPI documentation
+- **Database Operations**: CRUD operations, complex queries, data aggregation
+- **Business Logic**: Domain-specific operations, data processing
+- **Authentication**: JWT token management, user sessions, RBAC, tenant scoping
+- **AI Integration**: LangGraph workflows, RAG pipelines, model inference, Digital Twin service
+- **Real-time**: WebSocket message handling, event broadcasting
+- **Security**: Input validation, rate limiting, audit logging, IP allowlists for admin APIs
+- **Data Ingestion**: MQTT/HTTP for IoT gateways, GTFS-Realtime, traffic loop counters, signal controllers
+- **Event Pipeline**: Write-ahead raw_events table → streaming normalizer → feature enricher → facts tables
+
+### Data Contracts
+- **Type Safety**: Shared TypeScript interfaces and Pydantic schemas
+- **API Responses**: Consistent JSON structure with error handling
+- **Geospatial Data**: GeoJSON Point format for location data (SRID 4326)
+- **Pagination**: Standard pagination with skip/limit parameters (max 100 items)
+- **Error Handling**: Structured error responses with codes and messages
+- **Audit Trail**: All AI outputs stored with inputs, prompt hash, model, embeddings, source doc IDs
+
+## Core Integrations & External Services
+
+### AI & Machine Learning
+- **OpenAI & Anthropic**: Summarization, recommendations, multilingual communications with JSON-mode outputs
+- **RAG Pipeline**: Loader → chunker (policy-aware) → embed → store (pgvector) → cite & quote spans
+- **Forecasting Service**: Demand (transit ridership), traffic volume, energy load, water usage (Prophet/Neural)
+- **Optimization**: Signal timing suggestion, plow/collection routing (heuristics + constraints)
+- **Agents**: Data Quality Agent, Policy Compliance Agent, Incident Summarizer, Recommender, Notifier
+
+### Geospatial & Mapping
+- **Mapbox**: Interactive mapping with layer management
+- **PostGIS**: Geospatial database operations and queries
+- **GeoJSON**: Import/export functionality
+- **ESRI Feature Service**: Optional connector for legacy systems
+- **Map Tiles**: MBTiles generation for offline capabilities
+
+### Transportation & Mobility
+- **GTFS/GTFS-RT**: Transit data integration
+- **Signal Controllers**: NTCIP protocol support
+- **Connected Vehicles**: Read-only feeds for traffic analysis
+- **Bike/Scooter APIs**: Shared mobility data integration
+
+### Utilities & Infrastructure
+- **OPC-UA Proxy**: Read-only access to utility SCADA systems
+- **Smart Meters**: Batch imports (CSV/Parquet) for energy data
+- **Energy Market**: Pricing APIs for demand response
+- **Weather APIs**: Environmental data for forecasting
+
+### Communication & Storage
+- **Redis Streams**: Baseline messaging (Kafka/Redpanda for high-throughput)
+- **S3-Compatible Storage**: Minio/AWS for documents, exports, tiles with signed URLs
+- **SMTP/SendGrid**: Email notifications with templated payloads
+- **Webhooks**: Teams/Slack integration with templated payloads
+- **SSO**: SAML/OIDC (Azure AD, Okta) for enterprise authentication
+
+## UX Guidelines & Design Requirements
+
+### Design Principles
+- **Operational Clarity**: Status-first layouts, color-safe severities, dense tables with row focus mode
+- **Geospatial-First**: Map as primary canvas with dockable panels; responsive to kiosk, tablet, desktop
+- **Progressive Disclosure**: Overview → drilldown → action with breadcrumbs & timeline scrubber
+- **Responsive Design**: Mobile-first approach with kiosk, tablet, desktop support
+- **Accessibility**: WCAG 2.1 AA compliance (contrast ≥ 4.5:1, focus rings, keyboard navigation)
+
+### UI States & Interactions
+- **Loading States**: Skeleton loaders for streaming tiles, progress indicators
+- **Error States**: User-friendly error messages with recovery options
+- **Empty States**: Helpful guidance when no data is available
+- **Success States**: Confirmation feedback for user actions
+- **Micro-interactions**: Hover states reveal KPIs and trend sparklines, transitions
+
+### Design Tokens & Theming
+- **Colors**: Primary (blue), Success (green), Warning (yellow), Error (red), Neutral (gray)
+- **Typography**: Inter font family with consistent sizing scale
+- **Spacing**: 4px base unit with consistent spacing scale
+- **Shadows**: Subtle elevation system for depth and hierarchy
+- **Border Radius**: Consistent rounded corners (4px, 8px, 12px)
+- **Branding**: City theming via CSS variables, emergency mode theme with high-contrast palette
+- **Dark Mode**: Light/dark theme support with high-contrast options
+- **Internationalization**: LTR/RTL support, unit toggles (imperial/metric)
+
+### Interaction Patterns
+- **Navigation**: Sidebar navigation with collapsible sections
+- **Data Tables**: Sortable, filterable tables with row selection and focus mode
+- **Forms**: Multi-step forms with validation and progress indicators
+- **Modals**: Overlay dialogs for focused interactions
+- **Notifications**: Toast notifications for system feedback, live region updates for alerts
+- **File Flows**: Drag-drop for policy PDFs/CSVs/GeoJSON with progress and inline validation
+
+## Performance Budgets & Targets
+
+### Frontend Performance
+- **Bundle Size**: < 100KB gzipped for main bundle
+- **First Contentful Paint**: < 1.5 seconds
+- **Largest Contentful Paint**: < 2.5 seconds
+- **Cumulative Layout Shift**: < 0.1
+- **Time to Interactive**: < 3.5 seconds
+- **Code Splitting**: Dynamic imports for large components
+- **Offline Resilience**: Service Worker caching of static assets, request replay for minor outages
+
+### Backend Performance
+- **API Response Time**: < 200ms for standard endpoints
+- **Database Queries**: < 50ms for simple queries, < 500ms for complex
+- **WebSocket Latency**: < 100ms for real-time updates
+- **Concurrent Users**: Support 1000+ concurrent WebSocket connections
+- **Rate Limiting**: 100 requests/minute per user, 10/minute for AI endpoints
+- **Background Jobs**: Redis RQ/Arq workers for heavy compute operations
+
+### Optimization Strategies
+- **Caching**: Redis caching for expensive operations
+- **Pagination**: Always paginate large result sets (max 100 items)
+- **Lazy Loading**: Progressive loading of data and components
+- **Image Optimization**: Next.js Image component with WebP format
+- **Database Indexing**: Proper indexes on frequently queried fields
+- **Geospatial Optimization**: GIST indexes for location queries
+
+## Security Constraints & Requirements
+
+### Authentication & Authorization
+- **JWT Tokens**: Secure tokens with 30-minute expiration
+- **Refresh Tokens**: 7-day expiration with secure storage
+- **RBAC**: Role-based access control with granular permissions (role→permission matrix)
+- **Multi-tenancy**: Tenant isolation for all data operations
+- **Session Management**: Secure session handling with logout
+- **IP Allowlists**: Admin APIs restricted to specific IP ranges
+
+### Data Protection
+- **Encryption**: TLS 1.3 for data in transit, AES-256 for data at rest
+- **PII Handling**: Minimize collection, encrypt sensitive data
+- **Input Validation**: Server-side validation for all inputs
+- **SQL Injection**: Parameterized queries only
+- **XSS Prevention**: Content Security Policy, input sanitization
+
+### API Security
+- **Rate Limiting**: Per-tenant, per-route with burst + sustained sliding window in Redis
+- **CORS**: Proper CORS configuration for frontend access
+- **Headers**: Security headers (HSTS, CSP, X-Frame-Options)
+- **Audit Logging**: Comprehensive logging of sensitive operations
+- **Error Handling**: No sensitive information in error responses
+
+### Compliance Requirements
+- **GDPR/CCPA**: Data privacy compliance for user data
+- **CJIS**: Criminal Justice Information Services compliance
+- **ISO 27001**: Information security management
+- **SOC 2**: Security, availability, and confidentiality controls
+
+## Testing Expectations & Quality Assurance
+
+### Frontend Testing
+- **Unit Tests**: Component testing with React Testing Library
+- **Integration Tests**: User interaction flows and API integration
+- **E2E Tests**: Critical user journeys with Playwright
+- **Accessibility Tests**: Automated a11y testing with axe-core
+- **Visual Regression**: Screenshot testing for UI consistency
+- **Cross-browser**: Testing on Chrome, Firefox, Safari, Edge
+
+### Backend Testing
+- **Unit Tests**: Business logic and utility functions
+- **Integration Tests**: API endpoints and database operations
+- **Performance Tests**: Load testing for critical endpoints
+- **Security Tests**: Authentication and authorization testing
+- **Database Tests**: Migration and data integrity testing
+
+### Testing Standards
+- **Coverage**: Minimum 80% code coverage for critical paths
+- **Performance**: Automated performance regression testing
+- **Security**: Regular security scanning and vulnerability assessment
+- **Accessibility**: WCAG 2.1 AA compliance testing
+- **Geospatial**: PostGIS and mapping functionality testing
+
+### Quality Gates
+- **Code Review**: All changes require peer review
+- **Automated Tests**: All tests must pass before deployment
+- **Performance**: Performance budgets must be maintained
+- **Security**: Security scans must pass
+- **Documentation**: API documentation must be updated
+
+## Development Workflow & Guidelines
+
+### Code Quality Standards
+- **Type Safety**: 100% TypeScript coverage, no `any` types
+- **Error Handling**: Comprehensive error boundaries and exception handling
+- **Documentation**: Inline code documentation and API documentation
+- **Code Style**: ESLint and Prettier for consistent formatting
+- **Git Practices**: Conventional commits, feature branches
+
+### File Organization
+- **Frontend**: Feature-based organization with shared components
+- **Backend**: Domain-driven design with clear separation of concerns
+- **Documentation**: Comprehensive README files and API documentation
+- **Configuration**: Environment-specific configuration files
+
+### Deployment & DevOps
+- **CI/CD**: Automated testing and deployment pipelines
+- **Environment**: Development (sqlite), staging/prod (PostgreSQL) with Alembic migrations
+- **Monitoring**: Application performance monitoring and error tracking
+- **Backup**: Automated database backups and disaster recovery
+- **Scaling**: Horizontal scaling with load balancing
+
+## AI Collaboration Guidelines
+
+### Response Format
+- Use markdown formatting for all responses
+- Include code blocks with language specification
+- Reference specific file paths when discussing code
+- Provide context before making changes
+- Explain architectural decisions and reasoning
+
+### Edit Rules
+- Preserve existing structure unless explicitly asked to refactor
+- Follow established patterns in the codebase
+- Maintain type safety in both frontend and backend
+- Add appropriate error handling for new features
+- Update documentation when adding new endpoints or components
+
+### File Editing Boundaries
+- **Safe to Edit**: All files in `/frontend/app/`, `/frontend/components/`, `/backend/app/api/`, `/backend/app/models/`, `/backend/app/schemas/`
+- **Review Required**: Configuration files (`package.json`, `requirements.txt`, `next.config.js`, `tailwind.config.js`, `tsconfig.json`), main application files (`frontend/app/layout.tsx`, `backend/main.py`)
+- **Do Not Edit**: Generated files (`.next/`, `__pycache__/`), lock files (`package-lock.json`, `poetry.lock`), environment files (`.env`, `.env.local`), `PROJECT_BRIEF` (reference document)
+
+### Ambiguity Handling
+- Ask clarifying questions when requirements are unclear
+- Suggest multiple approaches for complex problems
+- Reference existing patterns in the codebase
+- Provide examples to illustrate solutions
+- Flag potential issues before implementation
+
+## Success Criteria & Implementation Guidelines
+
+### Functional Requirements
+- **Real-time Dashboard**: Live updates of city operations and KPIs with operational picture
+- **Incident Management**: Full lifecycle tracking with AI recommendations and agent-assisted actions
+- **Asset Monitoring**: Geospatial asset tracking and telemetry with Digital Twin interactions
+- **User Management**: Role-based access with multi-tenant support and audit trails
+- **Analytics**: Data visualization and predictive analytics with explainable forecasts
+- **AI Integration**: Automated recommendations, forecasting, and what-if simulations
+- **Geospatial Services**: Isochrones, snapping, geofencing, map tile generation
+
+### Non-Functional Requirements
+- **Performance**: Sub-second response times for critical operations
+- **Scalability**: Support for multiple city deployments with tenant isolation
+- **Reliability**: 99.9% uptime with graceful error handling
+- **Security**: Enterprise-grade security and compliance with data lineage
+- **Usability**: Intuitive interface with accessibility compliance and human-in-the-loop approvals
+
+### Implementation Priorities
+1. **Core Infrastructure**: Authentication, basic CRUD operations, multi-tenancy
+2. **Real-time Features**: WebSocket connections, live updates, event pipeline
+3. **AI Integration**: LangGraph workflows, RAG implementation, Digital Twin service
+4. **Advanced Analytics**: Predictive modeling, forecasting, scenario studio
+5. **Production Readiness**: Security hardening, performance optimization, compliance
+
+This prompt declaration serves as the comprehensive, battle-tested guide for AI-assisted development of the CivitasIQ smart city management system. Follow these guidelines to ensure consistent, high-quality development that meets the project's ambitious goals for intelligent city operations.
